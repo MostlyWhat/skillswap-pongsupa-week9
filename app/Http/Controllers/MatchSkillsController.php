@@ -7,6 +7,7 @@ use App\Services\SkillCatalog;
 use App\Services\SkillSwap;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
+use RuntimeException;
 
 class MatchSkillsController extends Controller
 {
@@ -19,9 +20,16 @@ class MatchSkillsController extends Controller
         $category = (string) $request->validated('category');
         $maxPrice = $request->validated('max_price');
 
+        // Get the latest skills from the database
+        try {
+            $skills = $catalog->all();
+        } catch (RuntimeException) {
+            return back()->withErrors(['category' => 'We could not load the skills to match. Please try again.']);
+        }
+
         // If there is no max price then there is no price limit, so only filter by category
         if ($maxPrice === null) {
-            $matchedSkills = $skillSwap->filterSkillsByCategory($catalog->all(), $category);
+            $matchedSkills = $skillSwap->filterSkillsByCategory($skills, $category);
         } else {
             // Match the skills from the catalog to the user's category and max price
             $userNeeds = [
@@ -29,7 +37,7 @@ class MatchSkillsController extends Controller
                 'maxPrice' => (float) $maxPrice,
             ];
 
-            $matchedSkills = $skillSwap->matchSkillsToUser($userNeeds, $catalog->all());
+            $matchedSkills = $skillSwap->matchSkillsToUser($userNeeds, $skills);
         }
 
         // Send the matched skills back to the page that posted the form

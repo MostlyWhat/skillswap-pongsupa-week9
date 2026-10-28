@@ -1,9 +1,10 @@
 <script lang="ts">
-    import { Form, Link, page } from '@inertiajs/svelte';
+    import { Deferred, Form, Link, page, router } from '@inertiajs/svelte';
     import CalculateCostController from '@/actions/App/Http/Controllers/CalculateCostController';
     import MatchSkillsController from '@/actions/App/Http/Controllers/MatchSkillsController';
     import AppHead from '@/components/AppHead.svelte';
     import InputError from '@/components/InputError.svelte';
+    import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
     import { Button } from '@/components/ui/button';
     import { Input } from '@/components/ui/input';
     import { Label } from '@/components/ui/label';
@@ -13,18 +14,25 @@
         SelectItem,
         SelectTrigger,
     } from '@/components/ui/select';
+    import { Skeleton } from '@/components/ui/skeleton';
     import { toUrl } from '@/lib/utils';
     import { dashboard, login } from '@/routes';
     import { register } from '@/routes';
-    import type { Skill } from '@/types';
+    import type { Skill, SkillCatalog } from '@/types';
 
+    // The catalog is a deferred prop. It is undefined while Laravel loads the skills from the API.
     let {
-        categories,
-        skills,
+        catalog,
     }: {
-        categories: string[];
-        skills: Skill[];
+        catalog?: SkillCatalog;
     } = $props();
+
+    const categories = $derived(catalog?.categories ?? ['All']);
+
+    // Ask Laravel to load the skills from the API again, for example after an error
+    function reloadSkills() {
+        router.reload({ only: ['catalog'] });
+    }
 
     const totalCost = $derived(page.flash.totalCost as number | undefined);
 
@@ -42,7 +50,7 @@
     });
 
     // Show the match result after a match, and all the skills before the first match
-    const shownSkills = $derived(matchedSkills ?? skills);
+    const shownSkills = $derived(matchedSkills ?? catalog?.skills ?? []);
 
     const auth = $derived(page.props.auth);
 </script>
@@ -164,68 +172,68 @@
         class="flex w-full items-center justify-center opacity-100 transition-opacity duration-750 starting:opacity-0 lg:mb-auto"
     >
         <main
-            class="flex w-full max-w-[335px] flex-col-reverse overflow-hidden rounded-lg lg:max-w-4xl lg:flex-row gap-4"
+            class="grid w-full max-w-[335px] gap-4 rounded-lg lg:max-w-4xl lg:grid-cols-3"
+            aria-busy={catalog === undefined}
         >
-            {#if shownSkills.length === 0}
-                <p class="text-[13px] text-[#706f6c] dark:text-[#A1A09A]" aria-live="polite">No skills match your needs.</p>
-            {/if}
-            {#each shownSkills as skill (skill.tutor)}
-                <div
-                    class="flex-1 rounded-lg bg-white p-6 text-[13px] leading-5 shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:bg-[#161615] dark:text-[#EDEDEC] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"
-                >
-                    <h1 class="mb-1 font-medium">{skill.title}</h1>
-                    <p class="mb-2 text-[#706f6c] dark:text-[#A1A09A]">
-                        {skill.category} · {skill.price === 0 ? 'Free' : `$${skill.price}/hour`}
-                    </p>
-                    <p class="mb-2 text-[#706f6c] dark:text-[#A1A09A]">
-                        {skill.description}
-                    </p>
-                    <ul class="mb-4 flex flex-col lg:mb-6">
-                        <li
-                            class="relative flex items-center gap-4 py-2 before:absolute before:top-1/2 before:bottom-0 before:left-[0.4rem] before:border-l before:border-[#e3e3e0] dark:before:border-[#3E3E3A]"
-                        >
-                            <span class="relative bg-white py-1 dark:bg-[#161615]">
-                                <span
-                                    class="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#e3e3e0] bg-[#FDFDFC] shadow-[0px_0px_1px_0px_rgba(0,0,0,0.03),0px_1px_2px_0px_rgba(0,0,0,0.06)] dark:border-[#3E3E3A] dark:bg-[#161615]"
-                                >
+            <Deferred data="catalog">
+                {#snippet fallback()}
+                    <p class="text-[13px] text-[#706f6c] lg:col-span-3 dark:text-[#A1A09A]" aria-live="polite">Loading skills…</p>
+                    {#each [1, 2, 3] as placeholder (placeholder)}
+                        <Skeleton class="h-56 rounded-lg" />
+                    {/each}
+                {/snippet}
+
+                {#if catalog?.error}
+                    <Alert variant="destructive" class="lg:col-span-3">
+                        <AlertTitle>Skills are not available</AlertTitle>
+                        <AlertDescription>
+                            <p>{catalog.error}</p>
+                            <Button variant="outline" size="sm" class="mt-2" onclick={reloadSkills}>Try again</Button>
+                        </AlertDescription>
+                    </Alert>
+                {:else if shownSkills.length === 0}
+                    <p class="text-[13px] text-[#706f6c] lg:col-span-3 dark:text-[#A1A09A]" aria-live="polite">No skills match your needs.</p>
+                {/if}
+                {#each catalog?.error ? [] : shownSkills as skill (skill.id)}
+                    <div
+                        class="flex flex-col rounded-lg bg-white p-6 text-[13px] leading-5 shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:bg-[#161615] dark:text-[#EDEDEC] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"
+                    >
+                        <h1 class="mb-1 font-medium">{skill.title}</h1>
+                        <p class="mb-2 text-[#706f6c] dark:text-[#A1A09A]">
+                            {skill.category} · {skill.price === 0 ? 'Free' : `$${skill.price}/hour`}
+                        </p>
+                        <p class="mb-2 text-[#706f6c] dark:text-[#A1A09A]">
+                            {skill.description}
+                        </p>
+                        <ul class="mb-4 flex flex-col lg:mb-6">
+                            <li class="relative flex items-center gap-4 py-2">
+                                <span class="relative bg-white py-1 dark:bg-[#161615]">
                                     <span
-                                        class="h-1.5 w-1.5 rounded-full bg-[#dbdbd7] dark:bg-[#3E3E3A]"
-                                    ></span>
+                                        class="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#e3e3e0] bg-[#FDFDFC] shadow-[0px_0px_1px_0px_rgba(0,0,0,0.03),0px_1px_2px_0px_rgba(0,0,0,0.06)] dark:border-[#3E3E3A] dark:bg-[#161615]"
+                                    >
+                                        <span
+                                            class="h-1.5 w-1.5 rounded-full bg-[#dbdbd7] dark:bg-[#3E3E3A]"
+                                        ></span>
+                                    </span>
                                 </span>
-                            </span>
-                            <span>
-                                {skill.schedule}
-                            </span>
-                        </li>
-                        <li
-                            class="relative flex items-center gap-4 py-2 before:absolute before:top-0 before:bottom-1/2 before:left-[0.4rem] before:border-l before:border-[#e3e3e0] dark:before:border-[#3E3E3A]"
-                        >
-                            <span class="relative bg-white py-1 dark:bg-[#161615]">
-                                <span
-                                    class="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#e3e3e0] bg-[#FDFDFC] shadow-[0px_0px_1px_0px_rgba(0,0,0,0.03),0px_1px_2px_0px_rgba(0,0,0,0.06)] dark:border-[#3E3E3A] dark:bg-[#161615]"
+                                <span>
+                                    Skill by {skill.provider}
+                                </span>
+                            </li>
+                        </ul>
+                        <ul class="mt-auto flex gap-3 text-sm leading-normal">
+                            <li>
+                                <button
+                                    onclick={() => alert(`You have booked a session with ${skill.provider}!`)}
+                                    class="inline-block rounded-sm border border-black bg-[#1b1b18] px-5 py-1.5 text-sm leading-normal text-white hover:border-[#f53003] hover:bg-[#f53003] dark:border-[#eeeeec] dark:bg-[#eeeeec] dark:text-[#1C1C1A] dark:hover:border-[#f53003] dark:hover:bg-[#f53003] transition-all duration-200"
                                 >
-                                    <span
-                                        class="h-1.5 w-1.5 rounded-full bg-[#dbdbd7] dark:bg-[#3E3E3A]"
-                                    ></span>
-                                </span>
-                            </span>
-                            <span>
-                                Skill by {skill.tutor}
-                            </span>
-                        </li>
-                    </ul>
-                    <ul class="flex gap-3 text-sm leading-normal">
-                        <li>
-                            <button
-                                onclick={() => alert(`You have booked a session with ${skill.tutor}!`)}
-                                class="inline-block rounded-sm border border-black bg-[#1b1b18] px-5 py-1.5 text-sm leading-normal text-white hover:border-[#f53003] hover:bg-[#f53003] dark:border-[#eeeeec] dark:bg-[#eeeeec] dark:text-[#1C1C1A] dark:hover:border-[#f53003] dark:hover:bg-[#f53003] transition-all duration-200"
-                            >
-                                Book a Session with {skill.tutor}
-                            </button>
-                        </li>
-                    </ul>
-                </div>
-            {/each}
+                                    Book a Session with {skill.provider}
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                {/each}
+            </Deferred>
         </main>
     </div>
     <section
