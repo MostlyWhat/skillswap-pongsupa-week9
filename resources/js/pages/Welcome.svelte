@@ -1,7 +1,8 @@
 <script lang="ts">
     import { Deferred, Form, Link, page, router } from '@inertiajs/svelte';
     import CalculateCostController from '@/actions/App/Http/Controllers/CalculateCostController';
-    import MatchSkillsController from '@/actions/App/Http/Controllers/MatchSkillsController';
+    import SkillController from '@/actions/App/Http/Controllers/SkillController';
+    import AddSkillForm from '@/components/AddSkillForm.svelte';
     import AppHead from '@/components/AppHead.svelte';
     import InputError from '@/components/InputError.svelte';
     import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -32,6 +33,12 @@
     // Ask Laravel to load the skills from the API again, for example after an error
     function reloadSkills() {
         router.reload({ only: ['catalog'] });
+    }
+
+    // After a new skill is saved, clear the last match so the full list with the new skill shows
+    function showAllSkills() {
+        matchedSkills = undefined;
+        matchCategory = 'All';
     }
 
     const totalCost = $derived(page.flash.totalCost as number | undefined);
@@ -132,7 +139,7 @@
     </div>
     <div class="mb-6 w-full max-w-[335px] lg:max-w-4xl">
         <Form
-            {...MatchSkillsController.form()}
+            {...SkillController.match.form()}
             options={{ preserveScroll: true, preserveState: true }}
             class="flex flex-col gap-4 lg:flex-row lg:items-end"
         >
@@ -236,6 +243,7 @@
             </Deferred>
         </main>
     </div>
+    <AddSkillForm {categories} onCreated={showAllSkills} />
     <section
         class="mt-6 w-full max-w-[335px] rounded-lg bg-white p-6 text-[13px] leading-5 shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] lg:max-w-4xl dark:bg-[#161615] dark:text-[#EDEDEC] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"
     >
