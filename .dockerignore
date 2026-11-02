@@ -1,0 +1,4 @@
+# On my computer I need to make sure the windows version of node_modules is not copied over.
+# As Docker runs on linux so it needs its own copy of the node_modules.
+node_modules
+vendor
